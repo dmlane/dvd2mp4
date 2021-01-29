@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 
+os=$(uname -o)
+
+if [ "$os" == "Darwin" ] ; then
+    drive=/dev/disk2
+else
+    drive=/dev/sr0
+fi
 
 # Get a list of titles we want
-source_disk=/dev/sr0
 
 LAST_IFS=$IFS
 IFS=$'\n'
@@ -13,7 +19,7 @@ preset="HQ 480p30 Surround"
 out_dir=~/work/DVD/${preset// /_}
 mkdir -p $out_dir i|| exit 1
 #2>/dev/null 
-for rec in $(lsdvd)
+for rec in $(lsdvd $drive)
 do
 	((NR++))
 	if [ $NR == 1 ] ; then
@@ -33,13 +39,12 @@ IFS=$LAST_IFS
 echo " Disk title = '$disk_title'"
 echo "     Wanted - '$wanted_titles'"
 
-set -xv
 section=0
 for tnr in $wanted_titles
 do
 	((tnr+=0))
 	((section++))
 	ofn="${disk_title}-part-$section.mp4"
-	HandBrakeCLI -i /dev/sr0 -t $tnr --preset "$preset" --optimize \
+	HandBrakeCLI -i $drive -t $tnr --preset "$preset" --optimize \
 		--audio-lang-list eng --output $out_dir/$ofn
 done
