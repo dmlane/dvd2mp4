@@ -1,91 +1,101 @@
 #!/usr/bin/env bash
 
+tmpfile=/tmp/dvd2mp4
 function fail {
     echo "$*"
     echo "     aborting ??????????"
+    rm ${tmpfile}* 2>/dev/null
     exit 2
 }
+#----------------------
+# HandBrake settings
 
 
 os=$(uname -o)
-
-if [ "$os" == "Darwin" ] ; then
-    drive=/dev/disk2
-else
-    drive=/dev/sr0
-fi
 preset="HQ 480p30 Surround"
 out_dir=~/work/DVD/${preset// /_}
 mkdir -p $out_dir || exit 1
-tsr=0
-skip_rest=0
+
+if [ "$os" == "Darwin" ] ; then
+    drive=/dev/disk2
+    NAS_BASE=/System/Volumes/Data
+else
+    drive=/dev/sr0
+    NAS_BASE=/Diskstation
+fi
+
+META_DIR=$NAS_BASE/Unix/Videos/DVD.metadata
+mkdir $META_DIR 2>/dev/null
 
 action=0
-LSDVD=/usr/bin/lsdvd
-time_field=4
-
-bluray=0
-while getopts "1b" c
+while getopts "1" c
 do
 	case $c in
 		1)	action=1;;
-		b)	LSDVD=~/dev/bluray_info/bluray_info
-			time_field=6
-			bluray=1;;
 	esac
 done
 shift $((OPTIND-1))
- 
- if [ ! -z "$1" ] ; then
-	[ -f $1 ] || fail "$1 not found" 
-	drive=$1
-fi
 
+function get_disk_name {
+	local dn=""
+	local msg="Waiting for disk ."
+	while :
+	do
+		dn=$(mount |sed -n -e "s?^$drive *[^ ]* \([^ ]*\) .*\$?\1?p"|sed 's/ /_/g')
+		test -z "$dn" ||break
+		1>&2 printf "$msg"
+		msg="."
+		sleep 5
+	done
 
-dvd_info=$($LSDVD $drive 2>/dev/null)
-if [ $bluray -eq 1 ] ; then
-	label=$(sed -n "s/Disc title: '\([^']*\)'.*/\1/p" <<<$dvd_info)
-else
-	label=$(sed -n 's/Disc Title: //p' <<<$dvd_info)
-fi
+	echo ${dn##*/}
+}
+function get_titles {
+	HandBrakeCLI -i $drive -t 0 --min-duration 600 --scan --json >${tmpfile}.hb 2>/dev/null||\
+		fail "Could not get titles from $drive"	
+	# Repair crappy format
+	awk '{
+    if(/^JSON Title Set/){ 
+    	sub(/^.*{/,"{");
 
-metafile=~/work/DVD/ISO/${label// /_}.meta
-
-if [ -s $metafile ] ; then
-	. $metafile
-else
-	titles=$(awk 'BEGIN {
-	    MinSecs=600
-	    result=""
+    	wanted=1 
+    }
+    if(wanted == 0) next
+    print
 	}
-	/^Title:/{
-	    split($'${time_field}',a,":")
-	    s=a[3]+(a[2]*60) +(a[1]*3600)
-	    if(s>=MinSecs ){
-	    sub(/,/,"",$2);
-	    printf "%d %s off ",$2,$'${time_field}'
-	    }
-	}
-	' <<<$dvd_info)
+' ${tmpfile}.hb >${tmpfile}.json
+	local res=$(jq -r  '.TitleList[] | "\(.Index) \(.Duration.Hours):\(.Duration.Minutes):\(.Duration.Seconds) off"'\
+		${tmpfile}.json|\
+		sed 's/[0-9]\{1,\}/0000000&/g;s/0*\([0-9]\{2,\}\)/\1/g')
+			
+	echo "$res"
+}
 
-	 
-	res=$(whiptail  --checklist "Please check required titles" 20 60 15 $titles 3>&1 1>&2 2>&3)
-	test $? -ne 0 && fail "No results from whiptail"
-	res=${res//\"/}
+disk=$(get_disk_name)
+
+metafile=${META_DIR}/${disk}.meta
+
+if [ ! -s $metafile ] ; then
+	params=$(get_titles)
+	wanted=$(whiptail --checklist "$disk:" 20 40 10 $params 3>&1 1>&2 2>&3)
+	test -z "$wanted" && exit
+	wanted=${wanted//\"/} 
 	cat >$metafile<<EOF
-res="$res"
-label="$label"
+label="$disk"
+res="$wanted"
 EOF
 fi
 
 if [ "$action" == "1" ] ; then
+	echo "."
+	cat $metafile
 	eject $drive
 	exit
 fi
 
-
+. $metafile
+#---------
 section=0
-
 all_fn=""
 for tnr in $res
 do
@@ -110,5 +120,3 @@ do
 done
 
 eject $drive
-
-
