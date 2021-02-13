@@ -7,7 +7,9 @@ else
 fi
 MP4_DIR=$NAS_BASE/Unix/Videos/Import
 SPLIT_FOLDER=~/work/Videos/Split
-export PATH=$PATH:~/dev/mp4proc
+extra_path=~/dev/mp4proc
+test -d $extra_path || fail "$extra_path is missing"
+export PATH=$PATH:$extra_path
 
 function usage {
     echo "$0 -p <program> -s <series_number> file_names"
