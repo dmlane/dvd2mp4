@@ -106,7 +106,7 @@ do
 	fi
 	OUTPUT_FOLDER=$NAS_BASE/Unix/Videos/Processed/$program
 	test -d $OUTPUT_FOLDER || mkdir $OUTPUT_FOLDER
-    KEEP_FOLDER==$NAS_BASE/Unix/Videos/Keep.me/$program
+    KEEP_FOLDER=$NAS_BASE/Unix/Videos/Keep.me/$program
     test -d $KEEP_FOLDER || mkdir $KEEP_FOLDER
 
 	((episode--))
