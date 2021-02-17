@@ -17,8 +17,6 @@ fi
 
 META_DIR=$NAS_BASE/Unix/Videos/DVD.metadata
 
-
-
 MP4_DIR=$NAS_BASE/Unix/Videos/Import
 SPLIT_FOLDER=~/work/Videos/Split
 extra_path=~/dev/mp4proc
@@ -49,6 +47,13 @@ function compare_videos {
 
 }
 
+function recently_modified {
+	local now=$(date +%s)
+	local filetime=$(stat $1 -c %Y)
+	local timediff=$(expr $now - $filetime)
+	[ $timediff -gt $2 ] && return 1
+	return 0
+}
 function add_metadata {
 	local metafile=/tmp/metadata.reorg
 	local tempfile=$(dirname $1)/meta_added.mp4
@@ -109,6 +114,8 @@ do
 	
 		fn=$(printf "%s-part-%2.2d.mp4" ${label} $tnr)
 		infile=$INPUT_FOLDER/$fn
+		recently_modified $infile 3600 && continue
+
 	
 		title=$(printf "%s_S%2.2dE%2.2d" $program $series $episode)
 		outfile=${title}.mp4
