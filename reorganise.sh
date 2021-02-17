@@ -124,7 +124,10 @@ do
 		outfile=${title}.mp4
 
 		[ -L $INPUT_FOLDER/$outfile ] && rm -f $INPUT_FOLDER/$outfile
-		test -f $OUTPUT_FOLDER/$outfile && continue
+		if [ -f $OUTPUT_FOLDER/$outfile ] ; then
+			printf "$infile -> $outfile\n    skipped as output exists already\n"
+			continue
+		fi
 		test -s $infile || fail "Expected to find $infile"
 		
 		echo $fn ..... $outfile
