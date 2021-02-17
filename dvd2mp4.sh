@@ -73,16 +73,16 @@ function get_titles {
 			
 	echo "$res"
 }
-function link_file { 
-	[ -z "$program" ] && return
-	[ -z "$series"  ] && return
-	[ -z "$episode" ] && return
-	local outfile=$1/$(printf "%s_S%2.2dE%2.2d_nometa.mp4" $program $series $episode)
-	test -L $outfile && rm -f $outfile
-	ln -s $1/$2 $outfile
-	((episode++))
-	return
-}
+# function link_file { 
+# 	[ -z "$program" ] && return
+# 	[ -z "$series"  ] && return
+# 	[ -z "$episode" ] && return
+# 	local outfile=$1/$(printf "%s_S%2.2dE%2.2d_nometa.mp4" $program $series $episode)
+# 	test -L $outfile && rm -f $outfile
+# 	ln -s $1/$2 $outfile
+# 	((episode++))
+# 	return
+# }
 
 
 disk=$(get_disk_name)
@@ -127,7 +127,7 @@ do
 		--audio-lang-list eng --output $out_dir/temporary.mp4
 	if [ $? -eq 0 ] ; then
 		mv $out_dir/temporary.mp4 $out_dir/$ofn
-		link_file $out_dir $ofn
+		#link_file $out_dir $ofn
 	else
 		rm $out_dir/$ofn
 	fi
