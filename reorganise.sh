@@ -5,114 +5,121 @@ if [ "$os" == "Darwin" ] ; then
 else
     NAS_BASE=/Diskstation
 fi
+INPUT_FOLDER=~/work/DVD/HQ_480p30_Surround
+
+if [ "$os" == "Darwin" ] ; then
+    drive=/dev/disk2
+    NAS_BASE=/System/Volumes/Data
+else
+    drive=/dev/sr0
+    NAS_BASE=/Diskstation
+fi
+
+META_DIR=$NAS_BASE/Unix/Videos/DVD.metadata
+
+
+
 MP4_DIR=$NAS_BASE/Unix/Videos/Import
 SPLIT_FOLDER=~/work/Videos/Split
 extra_path=~/dev/mp4proc
 test -d $extra_path || fail "$extra_path is missing"
 export PATH=$PATH:$extra_path
 
-function usage {
-    echo "$0 -p <program> -s <series_number> file_names"
-    exit 1
-}
 function fail {
-    echo "$*"
-    echo "     aborting ??????????"
-    exit 2
+	printf "\n"
+	echo "$*"
+	echo "     aborting ??????????"
+	exit 2
+}
+
+
+ffmpeg=$(command -v ffmpeg)
+[ $? -eq 0 ] || fail "Cannot find ffmeg on path"
+
+function FFMPEG {
+	echo $ffmpeg $@
+	$ffmpeg "$@"
+}
+
+function compare_videos {
+	local hash1=$(ffmpeg -v error -i $1 -map 0:v -c copy -f md5 -)
+	local hash2=$(ffmpeg -v error -i $2 -map 0:v -c copy -f md5 -)
+	[ "$hash1" == "$hash2" ] && return 0
+	fail "Hashes differed for $1 and $2"
+
+}
+
+function add_metadata {
+	local metafile=/tmp/metadata.reorg
+	local tempfile=$(dirname $1)/meta_added.mp4
+	local interfile=$(dirname $2)/meta_added.mp4
+	[ -f $tempfile ] && rm $tempfile
+
+	cat >$metafile<<EOF
+;FFMETADATA1
+major_brand=isom
+minor_version=512
+compatible_brands=isomiso2avc1mp41
+title=$title
+episode_sort=$episode
+show=$program
+season_number=$series
+media_type=10
+encoder=Lavf58.20.100	
+EOF
+	printf "Adding metadata for $1 "
+	FFMPEG -v error -i $1 -y -i $metafile -map_metadata 1 -c:v copy -c:a copy $tempfile
+	[ $? -eq 0 ] || fail "Adding metadata for $1 failed"	
+	printf "OK\n    Checking results "
+	compare_videos $1 $tempfile
+	printf "OK\n"
+	mv -v $tempfile $interfile ||\
+		fail "Failed to move $tempfile to $interfile"
+	mv -v $interfile $2 ||\
+		fail "Failed to move $interfile to $2"
 }
 
 # Portable way to get real path .......
 readlinkf(){ perl -MCwd -e 'print Cwd::abs_path shift' "$1";}
 
-while getopts "t:e:s:p:" c
+for prefix in $(find $INPUT_FOLDER -name "*part*.mp4" -printf "%P \n"|sed 's/\-part.*$//'|sort -u)
 do
-    case $c in
-        s)  series=$OPTARG;;
-        p)  program=$OPTARG;;
-    esac
+	metafile=${META_DIR}/${prefix}.meta
+	if [ ! -f $metafile ] ; then
+	 	echo "$metafile not found"
+	 	continue
+	fi
+	program=""
+	series=""
+	episode=""
+	. $metafile
+	if [[ $program && $series && $episode ]] ; then
+		:
+	else
+		echo "$metafile missing some items"
+		continue
+	fi
+	OUTPUT_FOLDER=$NAS_BASE/Unix/Videos/Processed/$program
+	test -d $OUTPUT_FOLDER || mkdir $OUTPUT_FOLDER
+
+	((episode--))
+	for tnr in $res
+	do
+		((episode++))
+	
+		fn=$(printf "%s-part-%2.2d.mp4" ${label} $tnr)
+		infile=$INPUT_FOLDER/$fn
+	
+		title=$(printf "%s_S%2.2dE%2.2d" $program $series $episode)
+		outfile=${title}.mp4
+
+		[ -L $INPUT_FOLDER/$outfile ] && rm -f $INPUT_FOLDER/$outfile
+		test -f $OUTPUT_FOLDER/$outfile && continue
+		test -s $infile || fail "Expected to find $infile"
+		
+		echo $fn ..... $outfile
+		add_metadata  $INPUT_FOLDER/$fn  $OUTPUT_FOLDER/$outfile
+
+		rm $INPUT_FOLDER/$fn
+	done
 done
-shift $((OPTIND-1))
-
-test -z "$program" && fail "You must supply program name (-p)"
-test -z "$series" && fail "You must supply series number (-s)"
-#---------------------------------------------------------------------
-# Check we have access to NAS 
-test -d $MP4_DIR    || fail "MP4_DIR $MP4_DIR not found"
-PROCDIR=$NAS_BASE/Unix/Videos/Processed/$program
-mkdir -p $PROCDIR   || fail "Could not create folder $PROCDIR"
-
-# We want to make sure we never delete this, so link the files here
-DVDDIR=$NAS_BASE/Unix/Videos/Keep.me/$program
-mkdir -p $DVDDIR   || fail "Could not create folder $DVDDIR"
-
-SAVEDIR=$NAS_BASE/Unix/Videos/DVD.keep_1_week/$program
-mkdir -p $SAVEDIR   || fail "Could not create folder $SAVEDIR"
-
-# Sources might come from multiple directories, so sort on basename
-
-
-episode=0
-ffn=""
-for fn in "$@"
-do
-    ffn="${ffn}$(readlinkf $fn)\n"
-done
-sorted=$(printf $ffn|sed 's?^\(.*/\)\(.*\)?\2 \1?'|sort|sed 's?^\(.*\) \(.*\)$?\2\1?')
-episode=0
-disk=''
-for fn in $sorted
-do
-    d=${fn##*/}
-    d=${d%-part*}
-    [ -z "$disk" ] && disk=$d
-    if [ "$disk" != "$d" ] ; then
-        disk=$d
-        printf "\n"
-    fi
-
-    ((episode++))
-    printf "%2d:%40s\n" $episode $fn
-done
-printf "\n"
-read -r -p "Are you sure? [y/N] " response
-if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]] ; then
-    :
-else
-    fail "OK - quitting"
-fi
-
-episode=0
-for fn in $sorted
-do
-    echo $fn
-    ((episode++))
-    outfile=$(printf "%s_S%2.2dE%2.2d.mp4" $program $series $episode)
-    dvd_file=$DVDDIR/$outfile 
-    vid_file=$PROCDIR/$outfile
-
-    # Check if output already exists
-    if [ -f $dvd_file ] ; then
-        if [ -f $vid_file ] ; then
-            if [ $dvd_file -ef $vid_file ] ; then
-                # Output can be overwritten
-                rm -f $dvd_file $vid_file
-            else
-                echo "$vid_file not the same as $dvd_file - saving it"
-                mv -v --backup=numbered $vid_file ${vid_file}.backup || \
-                    fail "Could not save $vid_file"
-                rm -f $dvd_file
-            fi
-        else
-            rm -f $dvd_file
-        fi
-    fi
-
-
-    add_metadata.sh -i $fn -p $program -s $series -e $episode $dvd_file
-    test $? -ne 0 && fail "Failed to create metadata file"
-    
-    ln -v $dvd_file $vid_file ||
-        fail "Could not create link  $vid_file"
- 
-done
-mv -v "$@" $SAVEDIR/

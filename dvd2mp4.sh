@@ -101,12 +101,13 @@ program=$program
 series=$series
 episode=$episode
 EOF
-	#((episode+=$(wc -w <<<$res)))
 fi
 
 if [ "$action" == "1" ] ; then
-	echo "."
-	cat $metafile
+	>&2 echo "."
+	>&2 cat $metafile
+	((episode+=$(wc -w <<<"$wanted")))
+	echo $episode>/tmp/episode
 	eject $drive
 	exit
 fi
