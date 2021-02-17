@@ -130,7 +130,7 @@ do
 		echo $fn ..... $outfile
 		add_metadata  $INPUT_FOLDER/$fn  $OUTPUT_FOLDER/$outfile
         ln -fv  $OUTPUT_FOLDER/$outfile $KEEP_FOLDER/$outfile
-        test $? -eq 0 || fail "Could not link file" 
+        test $? -eq 0 || fail "Could not link file $OUTPUT_FOLDER/$outfile $KEEP_FOLDER/$outfile" 
 		rm $INPUT_FOLDER/$fn
 	done
 done
