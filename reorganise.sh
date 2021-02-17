@@ -114,6 +114,7 @@ do
 	
 		fn=$(printf "%s-part-%2.2d.mp4" ${label} $tnr)
 		infile=$INPUT_FOLDER/$fn
+		test -s $infile || continue
 		recently_modified $infile 3600 && continue
 
 	
