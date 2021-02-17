@@ -106,6 +106,8 @@ do
 	fi
 	OUTPUT_FOLDER=$NAS_BASE/Unix/Videos/Processed/$program
 	test -d $OUTPUT_FOLDER || mkdir $OUTPUT_FOLDER
+    KEEP_FOLDER==$NAS_BASE/Unix/Videos/Keep.me/$program
+    test -d $KEEP_FOLDER || mkdir $KEEP_FOLDER
 
 	((episode--))
 	for tnr in $res
@@ -127,7 +129,8 @@ do
 		
 		echo $fn ..... $outfile
 		add_metadata  $INPUT_FOLDER/$fn  $OUTPUT_FOLDER/$outfile
-
+        ln -fv  $OUTPUT_FOLDER/$outfile $KEEP_FOLDER/$outfile
+        test $? -eq 0 || fail "Could not link file" 
 		rm $INPUT_FOLDER/$fn
 	done
 done
