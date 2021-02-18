@@ -117,7 +117,7 @@ do
 		fn=$(printf "%s-part-%2.2d.mp4" ${label} $tnr)
 		infile=$INPUT_FOLDER/$fn
 		test -s $infile || continue
-		recently_modified $infile 3600 && continue
+		recently_modified $infile 1800 && continue
 
 	
 		title=$(printf "%s_S%2.2dE%2.2d" $program $series $episode)

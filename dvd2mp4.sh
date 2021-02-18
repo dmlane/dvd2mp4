@@ -4,7 +4,7 @@ tmpfile=/tmp/dvd2mp4
 function fail {
     echo "$*"
     echo "     aborting ??????????"
-    rm ${tmpfile}* 2>/dev/null
+    test -z "$tmpfile" || rm ${tmpfile}* 2>/dev/null
     exit 2
 }
 #----------------------
